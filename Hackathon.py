@@ -1,106 +1,119 @@
-import mysql.connector
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from tkinter import ttk
+import sqlite3
 
-# Database Connection Function
-def get_db_connection():
-    return mysql.connector.connect(host="localhost", user="root", password="1234", database="hospital")
+# Database Connection
+conn = sqlite3.connect("hospital.db")
+cursor = conn.cursor()
 
-# Signup Function
+# Create users table if not exists
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        password TEXT NOT NULL
+    )
+""")
+conn.commit()
+
+
+# Function to handle signup
 def signup():
-    user_id = a.get()
-    name = b.get()
-    password = c.get()
+    user_id = entry_new_user_id.get()
+    name = entry_name.get()
+    password = entry_new_password.get()
 
-    if not user_id.isdigit():
-        messagebox.showerror("Error", "User ID must be numeric.")
-        return
-    if not name.replace(" ", "").isalpha():
-        messagebox.showerror("Error", "Name must contain only letters and spaces.")
-        return
-    if len(password) < 5:
-        messagebox.showerror("Error", "Password must be at least 5 characters long.")
+    if not user_id or not name or not password:
+        messagebox.showerror("Error", "All fields are required!")
         return
 
     try:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO login (id, name, password) VALUES (%s, %s, %s)", (user_id, name, password))
-            conn.commit()
-        messagebox.showinfo("Success", "Account created successfully!")
-    except mysql.connector.Error as e:
-        messagebox.showerror("Database Error", str(e))
+        cursor.execute("INSERT INTO users (user_id, name, password) VALUES (?, ?, ?)", (user_id, name, password))
+        conn.commit()
+        messagebox.showinfo("Success", "Signup Successful!")
+    except sqlite3.IntegrityError:
+        messagebox.showerror("Error", "User ID already exists!")
 
-# Login Function
+
+# Function to handle login
 def login():
-    user_id = d.get()
-    password = e.get()
+    user_id = entry_user_id.get()
+    password = entry_password.get()
 
-    try:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM login WHERE id = %s AND password = %s", (user_id, password))
-            result = cur.fetchone()
-        
-        if result:
-            messagebox.showinfo("Success", "Login successful!")
-            root_1.after(500, lambda: root_1.destroy())  # Close login window
-        else:
-            messagebox.showerror("Error", "Invalid login credentials.")
-    except mysql.connector.Error as e:
-        messagebox.showerror("Database Error", str(e))
+    cursor.execute("SELECT * FROM users WHERE user_id = ? AND password = ?", (user_id, password))
+    user = cursor.fetchone()
 
-# Function to Display Patient Data
-def display_patient():
-    try:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM patient")
-            records = cur.fetchall()
-        
-        for record in records:
-            print(f"Adhar ID: {record[2]}, Name: {record[3]}, Age: {record[4]}, Sex: {record[5]}")
-    except mysql.connector.Error as e:
-        messagebox.showerror("Database Error", str(e))
+    if user:
+        messagebox.showinfo("Login Success", f"Welcome, {user[2]}!")  # Display name
+        root.withdraw()  # Hide the login window
+        open_dashboard(user[2])  # Open dashboard with username
+    else:
+        messagebox.showerror("Error", "Invalid Credentials!")
 
-# GUI Window Setup
-root_1 = tk.Tk()
-root_1.title("Hospital Management System")
-root_1.geometry("600x400")
+
+# Function to open Dashboard after login
+def open_dashboard(username):
+    dashboard = tk.Toplevel(root)  # Create a new window
+    dashboard.title("Dashboard")
+    dashboard.geometry("400x300")
+    dashboard.configure(bg="#f0f0f0")
+
+    tk.Label(dashboard, text=f"Welcome, {username}!", font=("Arial", 14, "bold"), bg="#f0f0f0").pack(pady=20)
+
+    tk.Button(dashboard, text="Logout", command=lambda: logout(dashboard)).pack(pady=20)
+
+
+# Function to logout and go back to login screen
+def logout(dashboard):
+    dashboard.destroy()  # Close dashboard
+    root.deiconify()  # Show the login window again
+
+
+# GUI Setup
+root = tk.Tk()
+root.title("Hospital Management System")
+root.geometry("500x450")
+root.configure(bg="#f0f0f0")  # Light grey background
+
+# Header Label
+tk.Label(root, text="🏥 Hospital Management System", font=("Arial", 16, "bold"), bg="#f0f0f0").pack(pady=10)
 
 # Login Frame
-frame_log = tk.Frame(root_1)
-frame_log.pack(pady=20)
+frame_login = ttk.LabelFrame(root, text="Login", padding=15)
+frame_login.pack(pady=10, padx=20, fill="x")
 
-tk.Label(frame_log, text="User ID:").grid(row=0, column=0, padx=10, pady=5)
-d = tk.Entry(frame_log)
-d.grid(row=0, column=1)
+ttk.Label(frame_login, text="User ID:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+entry_user_id = ttk.Entry(frame_login)
+entry_user_id.grid(row=0, column=1, padx=10, pady=5)
 
-tk.Label(frame_log, text="Password:").grid(row=1, column=0, padx=10, pady=5)
-e = tk.Entry(frame_log, show="*")
-e.grid(row=1, column=1)
+ttk.Label(frame_login, text="Password:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+entry_password = ttk.Entry(frame_login, show="*")
+entry_password.grid(row=1, column=1, padx=10, pady=5)
 
-tk.Button(frame_log, text="Login", command=login).grid(row=2, column=0, columnspan=2, pady=10)
+ttk.Button(frame_login, text="Login", command=login).grid(row=2, columnspan=2, pady=10)
 
 # Signup Frame
-frame_signup = tk.Frame(root_1)
-frame_signup.pack(pady=20)
+frame_signup = ttk.LabelFrame(root, text="Signup", padding=15)
+frame_signup.pack(pady=10, padx=20, fill="x")
 
-tk.Label(frame_signup, text="New User ID:").grid(row=0, column=0, padx=10, pady=5)
-a = tk.Entry(frame_signup)
-a.grid(row=0, column=1)
+ttk.Label(frame_signup, text="New User ID:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+entry_new_user_id = ttk.Entry(frame_signup)
+entry_new_user_id.grid(row=0, column=1, padx=10, pady=5)
 
-tk.Label(frame_signup, text="Name:").grid(row=1, column=0, padx=10, pady=5)
-b = tk.Entry(frame_signup)
-b.grid(row=1, column=1)
+ttk.Label(frame_signup, text="Name:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+entry_name = ttk.Entry(frame_signup)
+entry_name.grid(row=1, column=1, padx=10, pady=5)
 
-tk.Label(frame_signup, text="Password:").grid(row=2, column=0, padx=10, pady=5)
-c = tk.Entry(frame_signup, show="*")
-c.grid(row=2, column=1)
+ttk.Label(frame_signup, text="Password:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+entry_new_password = ttk.Entry(frame_signup, show="*")
+entry_new_password.grid(row=2, column=1, padx=10, pady=5)
 
-tk.Button(frame_signup, text="Signup", command=signup).grid(row=3, column=0, columnspan=2, pady=10)
+ttk.Button(frame_signup, text="Signup", command=signup).grid(row=3, columnspan=2, pady=10)
 
 # Run the GUI
-root_1.mainloop()
+root.mainloop()
 
+# Close DB connection when GUI is closed
+conn.close()
